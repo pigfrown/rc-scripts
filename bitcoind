@@ -1,0 +1,56 @@
+#!/bin/sh
+
+. /etc/rc.subr
+
+name="bitcoind"
+start_precmd="${name}_prestart"
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+
+# rcvar defines the name of the on/off variable
+rcvar=bitcoind_enable
+
+load_rc_config $name
+: ${bitcoind_enable:=yes}
+: ${bitcoind_nolisten:=no}
+: ${bitcoind_blocksonly:=no}
+: ${bitcoind_throttle:=yes}
+
+pidfile="/var/run/${name}.pid"
+
+bitcoind_prestart()
+{
+        if checkyesno bitcoind_nolisten; then
+                rc_flags="-listen=0 ${rc_flags}"
+        fi
+        if checkyesno bitcoind_blocksonly; then
+                rc_flags="-blocksonly ${rc_flags}"
+        fi
+        #TODO: find a better way to throttle than this ?
+        if checkyesno bitcoind_throttle; then
+                #We allow 2 connections with a maximum up/down of 5kb/1kb each for 
+                #a total allowance of 20kb/4kb
+                rc_flags="-maxconnections=4 -maxrecievebuffer=5 -maxsendbuffer=1"
+        fi
+
+        #We always want to daemonise
+        rc_flags="-daemon ${rc_flags}"
+
+        return 0
+
+
+
+}
+bitcoind_start()
+{
+        su bitcoin -c "bitcoind ${rc_flags}"
+}
+
+bitcoind_stop()
+{
+        su bitcoin -c 'bitcoin-cli stop'
+        echo "Waiting 5 seconds for bitcoind to close cleanly"
+        sleep 5
+}
+
+run_rc_command "$1"
