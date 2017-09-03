@@ -30,7 +30,7 @@ bitcoind_prestart()
         if checkyesno bitcoind_throttle; then
                 #We allow 2 connections with a maximum up/down of 5kb/1kb each for 
                 #a total allowance of 20kb/4kb
-                rc_flags="-maxconnections=4 -maxrecievebuffer=5 -maxsendbuffer=1"
+                rc_flags="-maxconnections=4 -maxrecievebuffer=5 -maxsendbuffer=1 ${rc_flags}"
         fi
 
         #We always want to daemonise

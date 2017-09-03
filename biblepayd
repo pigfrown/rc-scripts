@@ -1,0 +1,76 @@
+#!/bin/sh
+
+. /etc/rc.subr
+
+
+name="biblepayd"
+start_precmd="${name}_prestart"
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+threads_cmd="${biblepayd}_threads"
+extra_commands="threads"
+
+#rcvar defines a boolean var
+rcvar=biblepayd_enable
+
+load_rc_config $name
+: ${biblepayd_enable:=yes} #node on/off
+: ${biblepayd_mine:=yes} #Enable mining using 24 threads
+: ${biblepayd_throttle:=no} #Enable bandwidth throttling
+: ${biblepayd_blocksonly:=no} #Only download blocks do not relay TX.. saves bandwidth
+: ${biblepayd_nolisten:=no} #do not even bother downloading TX.. saves even more bandwidth
+
+pidfile="/var/run/${name}.pid"
+
+biblepayd_prestart()
+{
+	if checkyesno biblepayd_nolisten; then
+		rc_flags="-listen=0 ${rc_flags}"
+	fi
+	if checkyesno biblepayd_blocksonly; then
+		rc_flags="-blocksonly ${rc_flags}"
+	fi
+	if checkyesno biblepayd_throttle; then
+		#TODO: find a better way to throttle?
+		#We allow 2 connections with a maximum up/down of 5kb/1kb each for 
+                #a total allowance of 20kb/4kb
+                rc_flags="-maxconnections=4 -maxrecievebuffer=5 -maxsendbuffer=1 ${rc_flags}"
+	fi
+	if checkyesno biblepayd_mine; then
+		rc_flags="-gen=1 -genproclimit=24 -poolport=80 -pool=http://pool2.biblepay.org -workerid=whale1 ${rc_flags}"
+	fi
+
+	#We always daemonise
+	rc_flags="-daemon ${rc_flags}"
+	return 0
+}
+
+biblepayd_start()
+{
+	echo $rc_flags
+	su clob -c "biblepayd ${rc_flags}"
+}
+
+biblepayd_stop()
+{
+	su clob -c "biblepay-cli stop"
+	echo "Waiting for 5 seconds for biblepayd to close cleanly"
+	sleep 5
+}
+
+biblepayd_threads()
+{
+	#Check if number of threads has been passed. If it hasn't just use default value (24)
+	if [ $# -gt 0 ] ; then
+		threads=$1
+	else
+		threads=24
+	fi
+	echo "Doing $threads"
+	su clob -c "biblepay-cli setgenerate true ${threads}"
+}
+	
+run_rc_command "$1"
+
+
+
